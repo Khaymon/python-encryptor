@@ -12,10 +12,10 @@ ARGUMENT_ERROR_CODE = 3
 FILE_OPEN_ERROR_CODE = 4
 TASK_ERROR_CODE = 5
 ALPHABET_SIZE = 26
-BUFFER_SIZE = 1024
+
 
 class Cipher:
-    def __init__(self, input_file = None, output_file = None):
+    def __init__(self, input_file=None, output_file=None):
         if input_file is None:
             self._input_file = sys.stdin
         else:
@@ -30,7 +30,7 @@ class Cipher:
                 self._output_file = open(output_file, 'w')
             except Exception as output_file_exception:
                 error(output_file_exception, FILE_OPEN_ERROR_CODE)
-    
+
     def __del__(self):
         self._input_file.close()
         self._output_file.close()
@@ -69,7 +69,7 @@ class CeasarCipher(Cipher):
 
         key = (ALPHABET_SIZE - int(key)) % ALPHABET_SIZE
         self.encrypt(str(key))
-        
+
     def train(self, model_file_name, train_file_name):
         try:
             model_file = open(model_file_name, 'w')
@@ -82,7 +82,7 @@ class CeasarCipher(Cipher):
 
         train_data = get_letters_frequency(train_file)
         json.dump(train_data, model_file)
-        
+
         model_file.close()
         train_file.close()
 
@@ -113,6 +113,7 @@ class CeasarCipher(Cipher):
 
         model_file.close()
         self.encrypt(str(best_shift))
+
 
 class ViegenereCipher(Cipher):
     def encrypt(self, key: str):
@@ -149,12 +150,13 @@ class ViegenereCipher(Cipher):
             new_key += string.ascii_uppercase[new_position]
         self.encrypt(new_key)
 
+
 def file_iterator(input_file):
     input_file.seek(0, 0)
     end_of_file = False
     carry_slash = False
     while not end_of_file:
-        buffer = input_file.read(BUFFER_SIZE)
+        buffer = input_file.read()
         if len(buffer) == 0:
             end_of_file = True
         for letter in buffer:
@@ -166,6 +168,7 @@ def file_iterator(input_file):
             else:
                 yield letter
 
+
 def get_distance(first_data, second_data):
     distance = 0
 
@@ -173,28 +176,19 @@ def get_distance(first_data, second_data):
         distance += (first_data[letter] - second_data[letter]) ** 2
     return distance
 
+
 def get_letters_frequency(input_file):
     data = Counter()
-
-    end_of_file = False
-    carry_slash = False
-    while not end_of_file:
-        buffer = input_file.read(BUFFER_SIZE)
-        if len(buffer) == 0:
-            end_of_file = True
-        for letter in buffer:
-            if letter.lower() in string.ascii_lowercase and not carry_slash:
-                data[letter.lower()] += 1
-            elif carry_slash:
-                    carry_slash = not carry_slash
-            elif letter == '\\':
-                carry_slash = True
+    for letter in file_iterator(input_file):
+        if letter.lower() in string.ascii_lowercase:
+            data[letter.lower()] += 1
     return data
 
 
 def error(message, exit_code):
     sys.stderr.write(message + "\n")
     sys.exit(exit_code)
+
 
 def parse(argument):
     try:
@@ -204,6 +198,7 @@ def parse(argument):
     if key_arg_position + 1 >= len(sys.argv):
         error("Unable to find a " + argument, ARGUMENT_ERROR_CODE)
     return sys.argv[key_arg_position + 1]
+
 
 if __name__ == "__main__":
     if len(sys.argv) == 1:
