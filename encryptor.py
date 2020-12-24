@@ -15,25 +15,13 @@ ALPHABET_SIZE = 26
 
 
 class Cipher:
-    def __init__(self, input_file=None, output_file=None):
-        if input_file is None:
-            self._input_file = sys.stdin
+    def __init__(self, key):
+        if key is None:
+            self._key = None
+        elif self.normalize_key(key) is None:
+            error("Key error", KEY_ERROR_CODE)
         else:
-            try:
-                self._input_file = open(input_file, 'r')
-            except Exception as input_file_exception:
-                error(input_file_exception, FILE_OPEN_ERROR_CODE)
-        if output_file is None:
-            self._output_file = sys.stdout
-        else:
-            try:
-                self._output_file = open(output_file, 'w')
-            except Exception as output_file_exception:
-                error(output_file_exception, FILE_OPEN_ERROR_CODE)
-
-    def __del__(self):
-        self._input_file.close()
-        self._output_file.close()
+            self._key = self.normalize_key(key)
 
     def encrypt(self):
         raise NotImplementedError
@@ -44,56 +32,36 @@ class Cipher:
     def hack(self, model_file):
         raise NotImplementedError
 
+    def normalize_key(self, key):
+        raise NotImplementedError
+
 
 class CeasarCipher(Cipher):
-    def encrypt(self, key: str):
-        if not key.isdecimal():
-            error("Invalid key", ARGUMENT_ERROR_CODE)
-        key = int(key)
-
-        for letter in file_iterator(self._input_file):
+    def encrypt(self, input_file, output_file):
+        for letter in file_iterator(input_file):
             if letter in string.ascii_lowercase:
                 position = string.ascii_lowercase.index(letter)
-                new_position = (position + key) % ALPHABET_SIZE
-                self._output_file.write(string.ascii_lowercase[new_position])
+                new_position = (position + self._key) % ALPHABET_SIZE
+                output_file.write(string.ascii_lowercase[new_position])
             elif letter in string.ascii_uppercase:
                 position = string.ascii_uppercase.index(letter)
-                new_position = (position + key) % ALPHABET_SIZE
-                self._output_file.write(string.ascii_uppercase[new_position])
+                new_position = (position + self._key) % ALPHABET_SIZE
+                output_file.write(string.ascii_uppercase[new_position])
             else:
-                self._output_file.write(letter)
+                output_file.write(letter)
 
-    def decrypt(self, key: str):
-        if not key.isdecimal():
-            error("Invalid key", ARGUMENT_ERROR_CODE)
+    def decrypt(self, input_file, output_file):
+        self._key = (ALPHABET_SIZE - self._key) % ALPHABET_SIZE
+        self.encrypt(input_file, output_file)
 
-        key = (ALPHABET_SIZE - int(key)) % ALPHABET_SIZE
-        self.encrypt(str(key))
-
-    def train(self, model_file_name, train_file_name):
-        try:
-            model_file = open(model_file_name, 'w')
-        except Exception as model_file_exception:
-            error(model_file_exception, FILE_OPEN_ERROR_CODE)
-        try:
-            train_file = open(train_file_name, 'r')
-        except Exception as train_file_exception:
-            error(train_file_exception, FILE_OPEN_ERROR_CODE)
-
+    def train(self, model_file, train_file):
         train_data = get_letters_frequency(train_file)
         json.dump(train_data, model_file)
 
-        model_file.close()
-        train_file.close()
-
-    def hack(self, model_file_name):
-        try:
-            model_file = open(model_file_name, 'r')
-        except Exception as model_file_exception:
-            error(model_file_exception, FILE_OPEN_ERROR_CODE)
+    def hack(self, input_file, output_file, model_file):
 
         train_data = defaultdict(int, json.load(model_file))
-        base_data = get_letters_frequency(self._input_file)
+        base_data = get_letters_frequency(input_file)
         best_data = base_data.copy()
         best_distance = get_distance(train_data, best_data)
         best_shift = 0
@@ -111,62 +79,58 @@ class CeasarCipher(Cipher):
                 best_data = current_data
                 best_shift = current_shift
 
-        model_file.close()
-        self.encrypt(str(best_shift))
+        self._key = best_shift
+        self.encrypt(input_file, output_file)
+
+    def normalize_key(self, key):
+        try:
+            return int(key)
+        except Exception:
+            return None
 
 
 class ViegenereCipher(Cipher):
-    def encrypt(self, key: str):
-        if not key.isalpha():
-            error("Invalid key for viegenere cipher", KEY_ERROR_CODE)
-        key = key.upper()
-
+    def encrypt(self, input_file, output_file):
         key_iterator = 0
-        for letter in file_iterator(self._input_file):
+        for letter in file_iterator(input_file):
             if letter in string.ascii_lowercase:
                 position = string.ascii_lowercase.index(letter)
-                shift = string.ascii_uppercase.index(key[key_iterator])
+                shift = string.ascii_uppercase.index(self._key[key_iterator])
                 new_position = (position + shift) % ALPHABET_SIZE
-                self._output_file.write(string.ascii_lowercase[new_position])
-                key_iterator = (key_iterator + 1) % len(key)
+                output_file.write(string.ascii_lowercase[new_position])
+                key_iterator = (key_iterator + 1) % len(self._key)
             elif letter in string.ascii_uppercase:
                 position = string.ascii_uppercase.index(letter)
-                shift = string.ascii_uppercase.index(key[key_iterator])
+                shift = string.ascii_uppercase.index(self._key[key_iterator])
                 new_position = (position + shift) % ALPHABET_SIZE
-                self._output_file.write(string.ascii_uppercase[new_position])
-                key_iterator = (key_iterator + 1) % len(key)
+                output_file.write(string.ascii_uppercase[new_position])
+                key_iterator = (key_iterator + 1) % len(self._key)
             else:
-                self._output_file.write(letter)
+                output_file.write(letter)
 
-    def decrypt(self, key: str):
-        if not key.isalpha():
-            error("Invalid key for viegenere cipher", KEY_ERROR_CODE)
-        key = key.upper()
-
+    def decrypt(self, input_file, output_file):
         new_key = str()
-        for letter in key:
+        for letter in self._key:
             position = string.ascii_uppercase.index(letter)
             new_position = (ALPHABET_SIZE - position) % ALPHABET_SIZE
             new_key += string.ascii_uppercase[new_position]
-        self.encrypt(new_key)
+        self._key = new_key
+        self.encrypt(input_file, output_file)
+
+    def normalize_key(self, key):
+        try:
+            if key.isalpha():
+                return key.upper()
+            else:
+                return None
+        except Exception:
+            return None
 
 
 def file_iterator(input_file):
     input_file.seek(0, 0)
-    end_of_file = False
-    carry_slash = False
-    while not end_of_file:
-        buffer = input_file.read()
-        if len(buffer) == 0:
-            end_of_file = True
-        for letter in buffer:
-            if carry_slash:
-                carry_slash = not carry_slash
-                yield '\\' + letter
-            elif letter == '\\':
-                carry_slash = True
-            else:
-                yield letter
+    for letter in input_file.read():
+        yield letter
 
 
 def get_distance(first_data, second_data):
@@ -178,11 +142,8 @@ def get_distance(first_data, second_data):
 
 
 def get_letters_frequency(input_file):
-    data = Counter()
-    for letter in file_iterator(input_file):
-        if letter.lower() in string.ascii_lowercase:
-            data[letter.lower()] += 1
-    return data
+    return Counter((letter.lower() for letter in input_file.read() if
+                    letter.lower() in string.ascii_lowercase))
 
 
 def error(message, exit_code):
@@ -200,6 +161,26 @@ def parse(argument):
     return sys.argv[key_arg_position + 1]
 
 
+def open_file(file_name, mode, verbose):
+    if mode == 'read':
+        try:
+            file = open(file_name, 'r')
+        except Exception:
+            if verbose:
+                error("Error of opening file", FILE_OPEN_ERROR_CODE)
+            file = sys.stdin
+    elif mode == 'write':
+        try:
+            file = open(file_name, 'w')
+        except Exception:
+            if verbose:
+                error("Error of opening file", FILE_OPEN_ERROR_CODE)
+            file = sys.stdout
+    else:
+        raise ValueError("Bad argument for open_file")
+    return file
+
+
 if __name__ == "__main__":
     if len(sys.argv) == 1:
         error("No task argument", TASK_ERROR_CODE)
@@ -211,18 +192,34 @@ if __name__ == "__main__":
     key_arg = parse('--key')
     cipher_arg = parse('--cipher')
     if cipher_arg == 'caesar':
-        cipher = CeasarCipher(input_file_name_arg, output_file_name_arg)
+        cipher = CeasarCipher(key_arg)
     elif cipher_arg == 'viegenere':
-        cipher = ViegenereCipher(input_file_name_arg, output_file_name_arg)
+        cipher = ViegenereCipher(key_arg)
     else:
         error("Unknown cipher type", ARGUMENT_ERROR_CODE)
     if task == 'encode':
-        cipher.encrypt(key_arg)
+        input_file = open_file(input_file_name_arg, 'read', False)
+        output_file = open_file(output_file_name_arg, 'write', False)
+        cipher.encrypt(input_file, output_file)
     elif task == 'decode':
-        cipher.decrypt(key_arg)
+        input_file = open_file(input_file_name_arg, 'read', False)
+        output_file = open_file(output_file_name_arg, 'write', False)
+        cipher.decrypt(input_file, output_file)
+        input_file.close()
+        output_file.close()
     elif task == 'train':
-        cipher.train(model_file_name_arg, train_file_name_arg)
+        train_file = open_file(train_file_name_arg, 'read', True)
+        model_file = open_file(model_file_name_arg, 'write', True)
+        cipher.train(model_file, train_file)
+        train_file.close()
+        model_file.close()
     elif task == 'hack':
-        cipher.hack(model_file_name_arg)
+        input_file = open_file(input_file_name_arg, 'read', False)
+        output_file = open_file(output_file_name_arg, 'write', False)
+        model_file = open_file(model_file_name_arg, 'read', True)
+        cipher.hack(input_file, output_file, model_file)
+        input_file.close()
+        output_file.close()
+        model_file.close()
     else:
         error("Unable to do " + task, TASK_ERROR_CODE)
