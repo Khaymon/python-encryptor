@@ -1,6 +1,6 @@
 #!/usr/bin/env python
+import io
 import logging
-import os
 import string
 import sys
 import json
@@ -65,7 +65,8 @@ class CeasarCipher(Cipher):
     def hack(self, input_file, output_file, model_file):
 
         train_data = defaultdict(int, json.load(model_file))
-        base_data = get_letters_frequency(input_file)
+        input_data = input_file.read()
+        base_data = get_letters_frequency(input_data)
         best_data = base_data.copy()
         best_distance = get_distance(train_data, best_data)
         best_shift = 0
@@ -83,9 +84,8 @@ class CeasarCipher(Cipher):
                 best_data = current_data
                 best_shift = current_shift
 
-        input_file.seek(0, 0)
         self._key = best_shift
-        self.encrypt(input_file, output_file)
+        self.encrypt(input_data, output_file)
 
     def normalize_key(self, key):
         try:
@@ -133,8 +133,12 @@ class ViegenereCipher(Cipher):
 
 
 def file_iterator(input_file):
-    for letter in input_file.read():
-        yield letter
+    if isinstance(input_file, io.TextIOWrapper):
+        for letter in input_file.read():
+            yield letter
+    elif isinstance(input_file, str):
+        for letter in input_file:
+            yield letter
 
 
 def get_distance(first_data, second_data):
@@ -146,7 +150,7 @@ def get_distance(first_data, second_data):
 
 
 def get_letters_frequency(input_file):
-    return Counter((letter.lower() for letter in input_file.read() if
+    return Counter((letter.lower() for letter in file_iterator(input_file) if
                     letter.lower() in string.ascii_lowercase))
 
 
@@ -225,21 +229,11 @@ if __name__ == "__main__":
         model_file.close()
     elif task == 'hack':
         input_file = open_file(input_file_name_arg, FILE_READ, False)
-        temp_created = False
-        if not input_file.seekable():
-            temp_created = True
-            temp_file = open_file('temp', FILE_WRITE, True)
-            for line in input_file:
-                temp_file.write(line)
-            temp_file.close()
-            input_file = open_file('temp', FILE_READ, True)
         output_file = open_file(output_file_name_arg, FILE_WRITE, False)
         model_file = open_file(model_file_name_arg, FILE_READ, True)
         cipher.hack(input_file, output_file, model_file)
         input_file.close()
         output_file.close()
         model_file.close()
-        if temp_created:
-            os.remove('temp')
     else:
         error("Unable to do " + task, TASK_ERROR_CODE)
