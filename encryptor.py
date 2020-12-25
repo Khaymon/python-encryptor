@@ -23,7 +23,7 @@ class Cipher:
         if key is None:
             self._key = None
         elif self.normalize_key(key) is None:
-            error("Key error", KEY_ERROR_CODE)
+            error("Key error" + key, KEY_ERROR_CODE)
         else:
             self._key = self.normalize_key(key)
 
@@ -175,21 +175,21 @@ def open_file(file_name, mode, verbose):
             file = open(file_name, 'r')
         except Exception:
             if verbose:
-                error("Error of opening file", FILE_OPEN_ERROR_CODE)
+                error("Error of opening file" + file_name, FILE_OPEN_ERROR_CODE)
             file = sys.stdin
     elif mode == FILE_WRITE:
         try:
             file = open(file_name, 'w')
         except Exception:
             if verbose:
-                error("Error of opening file", FILE_OPEN_ERROR_CODE)
+                error("Error of opening file" + file_name, FILE_OPEN_ERROR_CODE)
             file = sys.stdout
     elif mode == (FILE_WRITE | FILE_READ):
         try:
             file = open(file_name, 'r+')
         except Exception:
             if verbose:
-                error("Error of opening file", FILE_OPEN_ERROR_CODE)
+                error("Error of opening file" + file_name, FILE_OPEN_ERROR_CODE)
     else:
         raise ValueError("Bad argument for open_file")
     return file
@@ -222,8 +222,8 @@ if __name__ == "__main__":
         input_file.close()
         output_file.close()
     elif task == 'train':
-        train_file = open_file(input_file_name_arg, FILE_READ, True)
-        model_file = open_file(output_file_name_arg, FILE_WRITE, True)
+        train_file = open_file(train_file_name_arg, FILE_READ, True)
+        model_file = open_file(model_file_name_arg, FILE_WRITE, True)
         cipher.train(model_file, train_file)
         train_file.close()
         model_file.close()
