@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import logging
+import os
 import string
 import sys
 import json
@@ -12,6 +13,9 @@ ARGUMENT_ERROR_CODE = 3
 FILE_OPEN_ERROR_CODE = 4
 TASK_ERROR_CODE = 5
 ALPHABET_SIZE = 26
+
+FILE_WRITE = 1
+FILE_READ = 2
 
 
 class Cipher:
@@ -79,6 +83,7 @@ class CeasarCipher(Cipher):
                 best_data = current_data
                 best_shift = current_shift
 
+        input_file.seek(0, 0)
         self._key = best_shift
         self.encrypt(input_file, output_file)
 
@@ -128,7 +133,6 @@ class ViegenereCipher(Cipher):
 
 
 def file_iterator(input_file):
-    input_file.seek(0, 0)
     for letter in input_file.read():
         yield letter
 
@@ -162,20 +166,26 @@ def parse(argument):
 
 
 def open_file(file_name, mode, verbose):
-    if mode == 'read':
+    if mode == FILE_READ:
         try:
             file = open(file_name, 'r')
         except Exception:
             if verbose:
                 error("Error of opening file", FILE_OPEN_ERROR_CODE)
             file = sys.stdin
-    elif mode == 'write':
+    elif mode == FILE_WRITE:
         try:
             file = open(file_name, 'w')
         except Exception:
             if verbose:
                 error("Error of opening file", FILE_OPEN_ERROR_CODE)
             file = sys.stdout
+    elif mode == (FILE_WRITE | FILE_READ):
+        try:
+            file = open(file_name, 'r+')
+        except Exception:
+            if verbose:
+                error("Error of opening file", FILE_OPEN_ERROR_CODE)
     else:
         raise ValueError("Bad argument for open_file")
     return file
@@ -198,28 +208,38 @@ if __name__ == "__main__":
     else:
         error("Unknown cipher type", ARGUMENT_ERROR_CODE)
     if task == 'encode':
-        input_file = open_file(input_file_name_arg, 'read', False)
-        output_file = open_file(output_file_name_arg, 'write', False)
+        input_file = open_file(input_file_name_arg, FILE_READ, False)
+        output_file = open_file(output_file_name_arg, FILE_WRITE, False)
         cipher.encrypt(input_file, output_file)
     elif task == 'decode':
-        input_file = open_file(input_file_name_arg, 'read', False)
-        output_file = open_file(output_file_name_arg, 'write', False)
+        input_file = open_file(input_file_name_arg, FILE_READ, False)
+        output_file = open_file(output_file_name_arg, FILE_WRITE, False)
         cipher.decrypt(input_file, output_file)
         input_file.close()
         output_file.close()
     elif task == 'train':
-        train_file = open_file(train_file_name_arg, 'read', True)
-        model_file = open_file(model_file_name_arg, 'write', True)
+        train_file = open_file(input_file_name_arg, FILE_READ, True)
+        model_file = open_file(output_file_name_arg, FILE_WRITE, True)
         cipher.train(model_file, train_file)
         train_file.close()
         model_file.close()
     elif task == 'hack':
-        input_file = open_file(input_file_name_arg, 'read', False)
-        output_file = open_file(output_file_name_arg, 'write', False)
-        model_file = open_file(model_file_name_arg, 'read', True)
+        input_file = open_file(input_file_name_arg, FILE_READ, False)
+        temp_created = False
+        if not input_file.seekable():
+            temp_created = True
+            temp_file = open_file('temp', FILE_WRITE, True)
+            for line in input_file:
+                temp_file.write(line)
+            temp_file.close()
+            input_file = open_file('temp', FILE_READ, True)
+        output_file = open_file(output_file_name_arg, FILE_WRITE, False)
+        model_file = open_file(model_file_name_arg, FILE_READ, True)
         cipher.hack(input_file, output_file, model_file)
         input_file.close()
         output_file.close()
         model_file.close()
+        if temp_created:
+            os.remove('temp')
     else:
         error("Unable to do " + task, TASK_ERROR_CODE)
